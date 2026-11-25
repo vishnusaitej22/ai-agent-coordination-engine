@@ -1,0 +1,20 @@
+{
+  "task_id": "demo-task-001",
+  "tool": "compare_options",
+  "parameters": {
+    "options": {
+      "Option A": {
+        "quality": 80,
+        "efficiency": 70
+      },
+      "Option B": {
+        "quality": 90,
+        "efficiency": 85
+      }
+    },
+    "weights": {
+      "quality": 0.6,
+      "efficiency": 0.4
+    }
+  }
+}

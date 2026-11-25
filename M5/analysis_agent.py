@@ -1,5 +1,9 @@
-
-from schemas import AnalysisInput, AnalysisResult
+from schemas import (
+    AnalysisInput,
+    AnalysisResult,
+    AgentResponse,
+    AgentError
+)
 
 
 class AnalysisAgent:
@@ -7,6 +11,7 @@ class AnalysisAgent:
     def __init__(self):
         self.agent_name = "analysis_agent"
 
+    # Existing analysis logic
     def analyze(self, agent_input: AnalysisInput) -> AnalysisResult:
 
         findings = []
@@ -15,7 +20,6 @@ class AnalysisAgent:
 
         data = agent_input.research_data
 
-        # Check whether research data is a dictionary
         if not isinstance(data, dict):
             raise ValueError("Research data must be a dictionary")
 
@@ -29,17 +33,13 @@ class AnalysisAgent:
                 raise ValueError("Previous sales must be greater than zero")
 
             change = (
-                (current_sales - previous_sales)
-                / previous_sales
+                (current_sales - previous_sales) / previous_sales
             ) * 100
 
-            findings.append(
-                f"Sales changed by {change:.2f}%"
-            )
+            findings.append(f"Sales changed by {change:.2f}%")
 
             if change < 0:
                 problems.append("Sales have decreased")
-
                 trends.append("Negative sales trend detected")
 
             elif change > 0:
@@ -48,7 +48,7 @@ class AnalysisAgent:
             else:
                 trends.append("Sales remained unchanged")
 
-        # Analyze customer complaints
+        # Analyze complaints
         complaints = data.get("customer_complaints")
 
         if complaints is not None:
@@ -56,16 +56,12 @@ class AnalysisAgent:
             if complaints < 0:
                 raise ValueError("Customer complaints cannot be negative")
 
-            findings.append(
-                f"Customer complaints: {complaints}"
-            )
+            findings.append(f"Customer complaints: {complaints}")
 
             if complaints > 20:
-                problems.append(
-                    "High number of customer complaints"
-                )
+                problems.append("High number of customer complaints")
 
-        # Analyze customer satisfaction
+        # Analyze satisfaction
         satisfaction = data.get("customer_satisfaction")
 
         if satisfaction is not None:
@@ -105,8 +101,38 @@ class AnalysisAgent:
             analysis_summary=summary
         )
 
+    # New standard method required by M1-M7 contract
+    def execute(self, input_data: AnalysisInput) -> AgentResponse:
 
-# Simple standalone execution
+        try:
+            analysis_result = self.analyze(input_data)
+
+            return AgentResponse(
+                task_id=input_data.task_id,
+                agent_name=self.agent_name,
+                status="completed",
+                result=analysis_result.model_dump(),
+                next_agent="decision_agent",
+                error=None
+            )
+
+        except ValueError as exc:
+
+            return AgentResponse(
+                task_id=input_data.task_id,
+                agent_name=self.agent_name,
+                status="failed",
+                result={},
+                next_agent=None,
+                error=AgentError(
+                    code="ANALYSIS_FAILED",
+                    message=str(exc),
+                    details="Analysis Agent could not complete the task."
+                )
+            )
+
+
+# Standalone execution
 if __name__ == "__main__":
 
     sample_input = AnalysisInput(
@@ -123,7 +149,14 @@ if __name__ == "__main__":
 
     agent = AnalysisAgent()
 
+    # Detailed analysis
     result = agent.analyze(sample_input)
 
-    print("\nANALYSIS AGENT RESULT")
+    print("\nANALYSIS RESULT")
     print(result.model_dump_json(indent=4))
+
+    # Standard contract response
+    response = agent.execute(sample_input)
+
+    print("\nSTANDARD AGENT RESPONSE")
+    print(response.model_dump_json(indent=4))

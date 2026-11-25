@@ -1,9 +1,12 @@
-
 import pytest
 
 from decision_agent import DecisionAgent
 from schemas import DecisionInput
 
+
+# ==========================================
+# 1. BASIC DECISION TEST
+# ==========================================
 
 def test_decision_agent_success():
 
@@ -35,6 +38,10 @@ def test_decision_agent_success():
     assert result.recommended_decision == "Option B"
 
 
+# ==========================================
+# 2. NO OPTIONS TEST
+# ==========================================
+
 def test_decision_agent_no_options():
 
     agent = DecisionAgent()
@@ -50,6 +57,10 @@ def test_decision_agent_no_options():
     with pytest.raises(ValueError):
         agent.decide(data)
 
+
+# ==========================================
+# 3. NEGATIVE COST TEST
+# ==========================================
 
 def test_decision_agent_negative_cost():
 
@@ -73,6 +84,10 @@ def test_decision_agent_negative_cost():
     with pytest.raises(ValueError):
         agent.decide(data)
 
+
+# ==========================================
+# 4. STANDARD RESPONSE SUCCESS
+# ==========================================
 
 def test_decision_agent_standard_response_success():
 
@@ -102,6 +117,10 @@ def test_decision_agent_standard_response_success():
     assert response.error is None
 
 
+# ==========================================
+# 5. STANDARD RESPONSE FAILURE
+# ==========================================
+
 def test_decision_agent_standard_response_failure():
 
     agent = DecisionAgent()
@@ -122,3 +141,148 @@ def test_decision_agent_standard_response_failure():
     assert response.result == {}
     assert response.error.code == "DECISION_FAILED"
     assert response.next_agent is None
+
+
+# ==========================================
+# 6. M3 TOOLS INTEGRATION TEST
+# ==========================================
+
+def test_decision_agent_m3_integration():
+
+    agent = DecisionAgent()
+
+    data = DecisionInput(
+        task_id="TEST009",
+        analysis_result={},
+        available_options=[
+            {
+                "name": "Option A",
+                "cost": 10,
+                "benefit": 20,
+                "risk": 5
+            },
+            {
+                "name": "Option B",
+                "cost": 5,
+                "benefit": 30,
+                "risk": 2
+            }
+        ],
+        evaluation_criteria={},
+        context={}
+    )
+
+    result = agent.decide(data)
+
+    assert result.recommended_decision == "Option B"
+    assert len(result.evaluated_options) == 2
+
+    for option in result.evaluated_options:
+        assert "score" in option
+        assert "normalized_scores" in option
+
+    assert "comparison_note" in result.risks_and_benefits
+
+
+# ==========================================
+# 7. NORMALIZATION TEST
+# ==========================================
+
+def test_decision_agent_score_normalization():
+
+    agent = DecisionAgent()
+
+    data = DecisionInput(
+        task_id="TEST010",
+        analysis_result={},
+        available_options=[
+            {
+                "name": "Option A",
+                "cost": 10,
+                "benefit": 20,
+                "risk": 5
+            },
+            {
+                "name": "Option B",
+                "cost": 10,
+                "benefit": 20,
+                "risk": 5
+            }
+        ],
+        evaluation_criteria={},
+        context={}
+    )
+
+    result = agent.decide(data)
+
+    for option in result.evaluated_options:
+
+        scores = option["normalized_scores"]
+
+        assert scores["benefit"] == 100.0
+        assert scores["cost"] == 100.0
+        assert scores["risk"] == 100.0
+
+
+# ==========================================
+# 8. DUPLICATE OPTION TEST
+# ==========================================
+
+def test_decision_agent_duplicate_options():
+
+    agent = DecisionAgent()
+
+    data = DecisionInput(
+        task_id="TEST011",
+        analysis_result={},
+        available_options=[
+            {
+                "name": "Option A",
+                "cost": 10,
+                "benefit": 20,
+                "risk": 5
+            },
+            {
+                "name": "Option A",
+                "cost": 5,
+                "benefit": 30,
+                "risk": 2
+            }
+        ],
+        evaluation_criteria={},
+        context={}
+    )
+
+    with pytest.raises(ValueError, match="unique"):
+        agent.decide(data)
+
+
+# ==========================================
+# 9. EXECUTE METHOD TEST
+# ==========================================
+
+def test_decision_agent_execute():
+
+    agent = DecisionAgent()
+
+    data = DecisionInput(
+        task_id="TEST012",
+        analysis_result={},
+        available_options=[
+            {
+                "name": "Option A",
+                "cost": 10,
+                "benefit": 30,
+                "risk": 5
+            }
+        ],
+        evaluation_criteria={},
+        context={}
+    )
+
+    response = agent.execute(data)
+
+    assert response.task_id == "TEST012"
+    assert response.agent_name == "decision_agent"
+    assert response.status == "completed"
+    assert response.error is None
