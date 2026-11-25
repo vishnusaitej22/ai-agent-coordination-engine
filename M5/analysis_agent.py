@@ -1,4 +1,5 @@
 from schemas import (
+    AgentInput,
     AnalysisInput,
     AnalysisResult,
     AgentResponse,
@@ -11,7 +12,7 @@ class AnalysisAgent:
     def __init__(self):
         self.agent_name = "analysis_agent"
 
-    # Existing analysis logic
+    # Existing analysis business logic - unchanged
     def analyze(self, agent_input: AnalysisInput) -> AnalysisResult:
 
         findings = []
@@ -101,12 +102,26 @@ class AnalysisAgent:
             analysis_summary=summary
         )
 
-    # New standard method required by M1-M7 contract
-    def execute(self, input_data: AnalysisInput) -> AgentResponse:
+    # Standard method required by common agent contract
+    def execute(self, input_data: AgentInput) -> AgentResponse:
 
         try:
-            analysis_result = self.analyze(input_data)
 
+            # Extract research data from common context
+            research_data = input_data.context.get("research_data")
+
+            # Convert common AgentInput into AnalysisInput
+            analysis_input = AnalysisInput(
+                task_id=input_data.task_id,
+                user_request=input_data.user_request,
+                research_data=research_data,
+                context=input_data.context
+            )
+
+            # Call existing analysis logic
+            analysis_result = self.analyze(analysis_input)
+
+            # Return standard AgentResponse
             return AgentResponse(
                 task_id=input_data.task_id,
                 agent_name=self.agent_name,
@@ -116,7 +131,7 @@ class AnalysisAgent:
                 error=None
             )
 
-        except ValueError as exc:
+        except (ValueError, TypeError) as exc:
 
             return AgentResponse(
                 task_id=input_data.task_id,
@@ -135,28 +150,24 @@ class AnalysisAgent:
 # Standalone execution
 if __name__ == "__main__":
 
-    sample_input = AnalysisInput(
-        task_id="TASK001",
-        user_request="Analyze monthly business performance",
-        research_data={
-            "previous_sales": 50000,
-            "current_sales": 40000,
-            "customer_complaints": 25,
-            "customer_satisfaction": 65
-        },
-        context={}
-    )
-
     agent = AnalysisAgent()
 
-    # Detailed analysis
-    result = agent.analyze(sample_input)
+    # Common AgentInput
+    common_input = AgentInput(
+        task_id="TASK001",
+        user_request="Analyze monthly business performance",
+        context={
+            "research_data": {
+                "previous_sales": 50000,
+                "current_sales": 40000,
+                "customer_complaints": 25,
+                "customer_satisfaction": 65
+            }
+        }
+    )
 
-    print("\nANALYSIS RESULT")
-    print(result.model_dump_json(indent=4))
-
-    # Standard contract response
-    response = agent.execute(sample_input)
+    # Execute through common interface
+    response = agent.execute(common_input)
 
     print("\nSTANDARD AGENT RESPONSE")
     print(response.model_dump_json(indent=4))

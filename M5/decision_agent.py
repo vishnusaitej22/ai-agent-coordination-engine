@@ -16,6 +16,7 @@ if str(PROJECT_ROOT) not in sys.path:
 # ==========================================
 
 from schemas import (
+    AgentInput,
     DecisionInput,
     DecisionResult,
     DecisionOption,
@@ -26,6 +27,10 @@ from schemas import (
 
 from M3_Tools.tools import compare_options
 
+
+# ==========================================
+# DECISION AGENT
+# ==========================================
 
 class DecisionAgent:
 
@@ -77,7 +82,7 @@ class DecisionAgent:
         return benefit_scores, cost_scores, risk_scores
 
     # ==========================================
-    # 2. DECISION LOGIC USING M3 TOOLS
+    # 2. EXISTING DECISION BUSINESS LOGIC
     # ==========================================
 
     def decide(self, agent_input: DecisionInput) -> DecisionResult:
@@ -292,9 +297,49 @@ class DecisionAgent:
     # 4. COMMON EXECUTE METHOD
     # ==========================================
 
-    def execute(self, input_data: DecisionInput) -> AgentResponse:
+    def execute(self, input_data: AgentInput) -> AgentResponse:
 
-        return self.decide_response(input_data)
+        try:
+
+            # Extract data from common AgentInput context
+            decision_data = input_data.context
+
+            # Convert common AgentInput into DecisionInput
+            decision_input = DecisionInput(
+                task_id=input_data.task_id,
+
+                analysis_result=decision_data.get(
+                    "analysis_result", {}
+                ),
+
+                available_options=decision_data.get(
+                    "available_options", []
+                ),
+
+                evaluation_criteria=decision_data.get(
+                    "evaluation_criteria", {}
+                ),
+
+                context=input_data.context
+            )
+
+            # Call existing decision logic
+            return self.decide_response(decision_input)
+
+        except (ValueError, TypeError) as exc:
+
+            return AgentResponse(
+                task_id=input_data.task_id,
+                agent_name=self.agent_name,
+                status="failed",
+                result={},
+                next_agent=None,
+                error=AgentError(
+                    code="DECISION_FAILED",
+                    message=str(exc),
+                    details="Decision Agent could not process the common input."
+                )
+            )
 
 
 # ==========================================
@@ -303,58 +348,59 @@ class DecisionAgent:
 
 if __name__ == "__main__":
 
-    sample_input = DecisionInput(
-        task_id="TASK002",
-
-        analysis_result={
-            "identified_problems": [
-                "Sales have decreased",
-                "Customer satisfaction is low"
-            ],
-
-            "key_findings": [
-                "Sales changed by -20.00%"
-            ],
-
-            "trends_and_patterns": [
-                "Negative sales trend detected"
-            ]
-        },
-
-        available_options=[
-            {
-                "name": "Improve Marketing",
-                "cost": 10,
-                "benefit": 25,
-                "risk": 5
-            },
-            {
-                "name": "Improve Customer Service",
-                "cost": 8,
-                "benefit": 30,
-                "risk": 3
-            },
-            {
-                "name": "Offer Discounts",
-                "cost": 15,
-                "benefit": 20,
-                "risk": 8
-            }
-        ],
-
-        evaluation_criteria={},
-        context={}
-    )
-
     agent = DecisionAgent()
 
-    # Decision result
-    result = agent.decide(sample_input)
+    sample_input = AgentInput(
+        task_id="TASK002",
 
-    print("\n========== DECISION AGENT RESULT ==========")
-    print(result.model_dump_json(indent=4))
+        user_request="Evaluate business improvement options",
 
-    # Standard response
+        context={
+
+            "analysis_result": {
+                "identified_problems": [
+                    "Sales have decreased",
+                    "Customer satisfaction is low"
+                ],
+
+                "key_findings": [
+                    "Sales changed by -20.00%"
+                ],
+
+                "trends_and_patterns": [
+                    "Negative sales trend detected"
+                ]
+            },
+
+            "available_options": [
+                {
+                    "name": "Improve Marketing",
+                    "cost": 10,
+                    "benefit": 25,
+                    "risk": 5
+                },
+                {
+                    "name": "Improve Customer Service",
+                    "cost": 8,
+                    "benefit": 30,
+                    "risk": 3
+                },
+                {
+                    "name": "Offer Discounts",
+                    "cost": 15,
+                    "benefit": 20,
+                    "risk": 8
+                }
+            ],
+
+            "evaluation_criteria": {
+                "benefit_weight": 1.0,
+                "cost_weight": 1.0,
+                "risk_weight": 1.0
+            }
+        }
+    )
+
     response = agent.execute(sample_input)
 
     print("\n========== STANDARD AGENT RESPONSE ==========")

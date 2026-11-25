@@ -2,7 +2,7 @@
 import pytest
 
 from analysis_agent import AnalysisAgent
-from schemas import AnalysisInput
+from schemas import AgentInput, AnalysisInput
 
 
 def test_analysis_agent_success():
@@ -62,3 +62,26 @@ def test_analysis_agent_invalid_data():
 
     with pytest.raises(ValueError):
         agent.analyze(data)
+
+
+def test_analysis_agent_execute_common_input():
+
+    input_data = AgentInput(
+        task_id="TEST004",
+        user_request="Analyze sales",
+        context={
+            "research_data": {
+                "previous_sales": 50000,
+                "current_sales": 40000,
+                "customer_complaints": 25,
+                "customer_satisfaction": 65
+            }
+        }
+    )
+
+    response = AnalysisAgent().execute(input_data)
+
+    assert response.task_id == "TEST004"
+    assert response.agent_name == "analysis_agent"
+    assert response.status == "completed"
+    assert response.error is None
