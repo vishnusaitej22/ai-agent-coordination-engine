@@ -1,0 +1,20 @@
+{
+  "task_id": "demo-task-001",
+  "tool": "compare_options",
+  "status": "success",
+  "result": {
+    "ranked_options": [
+      {
+        "option": "Option B",
+        "weighted_score": 88.0
+      },
+      {
+        "option": "Option A",
+        "weighted_score": 76.0
+      }
+    ],
+    "recommended_option": "Option B",
+    "note": "Ranking is based only on the supplied scores and weights."
+  },
+  "error": null
+}

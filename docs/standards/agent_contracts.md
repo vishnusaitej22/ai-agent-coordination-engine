@@ -1,18 +1,30 @@
 # Common Agent and Workflow Contracts
 
 ## 1. Purpose
-This document defines the common data formats that agents and the workflow use to communicate. The examples follow the project specification. They are illustrative contracts; M1 and M7 must agree the final Pydantic schemas before implementation.
 
-## 2. Contract principles
-- Use JSON-compatible data.
+This document defines the common data formats and communication standards used by all agents and the workflow orchestration system in the AI Agent Coordination Engine.
+
+These contracts are agreed between M1 (System Architecture and Integration) and M7 (Agent Orchestration and Backend) as the initial shared contract.
+
+All team members must follow these standards when implementing their modules.
+
+## 2. Contract Principles
+
+- Use JSON-compatible data structures.
 - Keep field names consistent across all modules.
-- Preserve task/workflow identifiers as data moves through the system.
+- Preserve task and workflow identifiers throughout execution.
 - Use explicit status and error fields.
-- Put structured information in `result`; do not rely on unstructured prose alone.
-- Validate inputs and outputs at component boundaries.
-- Discuss and document any breaking contract change before implementation.
+- Store structured information in `result`.
+- Validate inputs and outputs at component boundaries using Pydantic.
+- Use TypedDict for LangGraph workflow state.
+- The orchestrator controls agent routing and handoffs.
+- Retry handling is centrally managed by the orchestrator.
+- Discuss and document breaking contract changes before implementation.
 
-## 3. Contract A — Agent input
+## 3. Contract A — Agent Input
+
+All agents must accept a common input structure.
+
 ```json
 {
   "task_id": "TASK001",
@@ -21,13 +33,20 @@ This document defines the common data formats that agents and the workflow use t
 }
 ```
 
-| Field | Meaning |
+| Field | Description |
 |---|---|
-| `task_id` | Identifier for the task being performed |
-| `user_request` | Business request or task instruction |
-| `context` | Additional relevant workflow/context data |
+| `task_id` | Unique identifier for the task |
+| `user_request` | User's business request or task instruction |
+| `context` | Additional workflow information and relevant data |
 
-## 4. Contract B — Agent output
+**Standard method:** `execute(input_data)`
+
+Each agent must process the input and return a standard AgentResponse.
+
+## 4. Contract B — Agent Response
+
+All agents must return a common response structure.
+
 ```json
 {
   "task_id": "TASK001",
@@ -39,18 +58,85 @@ This document defines the common data formats that agents and the workflow use t
 }
 ```
 
-| Field | Meaning |
+| Field | Description |
 |---|---|
 | `task_id` | Identifier matching the input task |
-| `agent_name` | Name of the agent returning the result |
-| `status` | Execution status |
-| `result` | Structured result produced by the agent |
-| `next_agent` | Suggested/expected next agent; orchestrator controls actual routing |
-| `error` | `null` on success, structured error information when failed |
+| `agent_name` | Name of the executing agent |
+| `status` | Agent execution status |
+| `result` | Structured output produced by the agent |
+| `next_agent` | Optional next-agent information |
+| `error` | Structured error information or null |
 
-The example status `completed` is from the specification. The team should agree the complete allowed status set with M7.
+### Allowed Agent Statuses
 
-## 5. Contract C — Workflow output
+- `completed` — Agent completed its task successfully.
+- `partial` — Agent completed only part of its task.
+- `failed` — Agent execution failed.
+
+**Important:** The `next_agent` field is informational. Actual routing and handoffs are controlled by LangGraph, not individual agents.
+
+## 5. Contract C — Agent Error
+
+Errors must follow a common structure.
+
+```json
+{
+  "code": "SOURCE_UNAVAILABLE",
+  "message": "The required information source could not be reached",
+  "details": {},
+  "agent_name": "research_agent"
+}
+```
+
+| Field | Description |
+|---|---|
+| `code` | Error identifier |
+| `message` | Human-readable error description |
+| `details` | Optional additional error information |
+| `agent_name` | Optional name of the agent where the error occurred |
+
+Retry counts and retry attempts are maintained centrally by the orchestrator, not independently by individual agents.
+
+## 6. Contract D — Workflow State
+
+LangGraph uses a shared workflow state implemented with TypedDict.
+
+The initial workflow state contains the following fields:
+
+| Field | Description |
+|---|---|
+| `workflow_id` | Unique workflow identifier |
+| `task_id` | Task identifier |
+| `user_request` | Original user request |
+| `context` | Shared context information |
+| `plan` | Planning agent output |
+| `research_result` | Research agent output |
+| `analysis_result` | Analysis agent output |
+| `decision_result` | Decision agent output |
+| `agent_outputs` | Complete agent responses for tracking and debugging |
+| `agents_executed` | Ordered list of executed agents |
+| `current_agent` | Currently executing agent |
+| `status` | Overall workflow status |
+| `retry_count` | Retry tracking information |
+| `approval_status` | Human approval information |
+| `final_result` | Final workflow output |
+| `error` | Workflow error information, if any |
+
+### Allowed Workflow Statuses
+
+- `pending` — Workflow has not started.
+- `running` — Workflow is currently executing.
+- `completed` — Workflow completed successfully.
+- `failed` — Workflow execution failed.
+- `skipped` — A workflow step was skipped.
+- `waiting_for_approval` — Workflow is waiting for human approval.
+
+Agent statuses and workflow statuses must remain separate.
+
+## 7. Contract E — Workflow Output
+
+The workflow returns a standard final response.
+
 ```json
 {
   "workflow_id": "WF001",
@@ -59,56 +145,73 @@ The example status `completed` is from the specification. The team should agree 
     "planning_agent",
     "research_agent",
     "analysis_agent",
-    "decision_agent",
-    "response_agent"
+    "decision_agent"
   ],
-  "final_result": {}
+  "final_result": {},
+  "error": null
 }
 ```
 
-| Field | Meaning |
+| Field | Description |
 |---|---|
-| `workflow_id` | Identifier for the complete workflow |
+| `workflow_id` | Unique workflow identifier |
 | `status` | Overall workflow status |
 | `agents_executed` | Ordered list of agents that executed |
-| `final_result` | Structured final output for the user |
+| `final_result` | Structured final output |
+| `error` | Workflow error information or null |
 
-## 6. Example error output (proposed extension)
-The following is a proposed implementation detail to agree with M7; it is not a literal example from the PDF:
-```json
-{
-  "task_id": "TASK002",
-  "agent_name": "research_agent",
-  "status": "failed",
-  "result": {},
-  "next_agent": null,
-  "error": {
-    "code": "SOURCE_UNAVAILABLE",
-    "message": "The required information source could not be reached"
-  }
-}
-```
+## 8. Workflow Execution and Orchestration
 
-## 7. Schema ownership and approval
-1. M1 documents and proposes the `agent_schema.py` and `workflow_schema.py` contracts.
-2. M7 implements the approved contracts in the backend API schemas.
-3. M1 and M7 review changes together.
-4. All agent owners must update their implementations and tests when a contract change is approved.
-5. Do not independently add, rename or remove shared fields.
+The initial workflow execution sequence is:
 
-## 8. Questions to resolve with M7 before freezing schemas
-- Final allowed values for `status`.
-- Whether `next_agent` is informational or required for routing (the orchestrator remains authoritative).
-- Exact shape of `context`, `result` and `error`.
-- Whether timestamps, correlation IDs or version fields are required.
-- Workflow status and partial-result behavior.
-- How retries and human approval are represented.
+1. Planning Agent
+2. Research Agent
+3. Analysis Agent
+4. Decision Agent
+5. Human Approval, if required
+6. Execution Tool, if approved
+7. Final Response
 
-## 9. Contract test expectations
-- Valid input passes validation.
+### Orchestration Rules
+
+- LangGraph controls routing and conditional transitions.
+- Agents communicate their outputs through the shared workflow state.
+- The orchestrator passes relevant outputs between agents.
+- The orchestrator manages retries and retry limits centrally.
+- Complete agent responses are stored in `agent_outputs`.
+- Agents must not independently invoke other agents.
+- Human approval must happen before any execution that requires approval.
+- The workflow must not proceed with an approval-dependent execution unless the required approval is received.
+
+## 9. Schema Ownership and Responsibilities
+
+1. M1 is responsible for documenting and coordinating the common contracts.
+2. M7 is responsible for implementing the approved contracts in the LangGraph workflow and backend API.
+3. M1 and M7 review shared contract changes together.
+4. M2–M8 must follow the approved interfaces when implementing their respective modules.
+5. All agent owners must update their implementations and tests when a contract change is approved.
+6. No team member should independently add, rename, or remove shared fields without coordination.
+
+## 10. Contract Testing Expectations
+
+All modules must verify the following:
+
+- Valid agent input passes validation.
 - Missing required fields are rejected.
-- Wrong field types are rejected.
-- Agent output preserves the task identifier.
-- Successful output has a valid status and `error: null`.
-- Failed output contains an error description.
-- Workflow output includes workflow ID, status, executed agents and final result.
+- Incorrect field types are rejected.
+- Agent responses preserve the original `task_id`.
+- Agent responses use an allowed agent status.
+- Successful responses contain `error: null`.
+- Failed responses contain structured error information.
+- Workflow responses contain a valid workflow ID and status.
+- Workflow state tracks executed agents.
+- Retry handling is controlled by the orchestrator.
+- Approval-dependent execution waits for human approval.
+
+## 11. Contract Approval
+
+This document represents the initial shared contract confirmed by M1 and M7 on 24 November 2026.
+
+All team members should use this document as the common reference for module development and integration.
+
+Any future changes must be discussed and agreed upon by M1 and M7 before implementation.
