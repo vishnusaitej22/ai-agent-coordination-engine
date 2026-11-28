@@ -127,14 +127,17 @@ class BaseAgent:
         self,
         task_id: str,
         message: str,
+        *,
+        exc_info: bool = False,
     ) -> None:
         """Record an agent execution failure."""
 
-        logger.exception(
+        logger.error(
             "Agent '%s' failed for task '%s': %s",
             self.agent_name,
             task_id,
             message,
+            exc_info=exc_info,
         )
 
     def invoke_llm(self, prompt: str) -> Any:

@@ -170,7 +170,8 @@ class ResponseAgent(BaseAgent):
             self.log_failure(
                 task_id=validated_input.task_id,
                 message=str(exc),
-            )
+                exc_info=True,
+                )
 
             return self.create_error_response(
                 task_id=validated_input.task_id,
